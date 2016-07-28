@@ -3,6 +3,7 @@ require 'uri'
 require 'json'
 require 'trollop'
 require 'pp'
+require 'typhoeus'
 
 
 opts = Trollop::options do
@@ -15,30 +16,36 @@ Trollop::die :customer_key, "Must supply customer key" if opts[:customer_key].ni
 
 
 
-def post_to_opsgenie(action = :create, params = {})
+def post_to_opsgenie(action = :create, number = opts[:number], params = {})
+
 
   uripath = (action == :create) ? '' : 'close'
-  uri = URI.parse("https://api.opsgenie.com/v1/json/alert/#{uripath}")
-  http = Net::HTTP.new(uri.host, uri.port)
-  http.use_ssl = true
-  http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-  request = Net::HTTP::Post.new(uri.request_uri, 'Content-Type' => 'application/json')
-  request.body = params.to_json
-  response = http.request(request)
-  result = JSON.parse(response.body)
+  url = "https://api.opsgenie.com/v1/json/alert/#{uripath}"
 
-  if result['status'] == "successful"
-    if result['code'] == 200
-      print  "Created alert #{result['alertId'].chomp}\n"
-    else
-      print "Updated alert #{result['alertId'].chomp}\n"
-    end
-  end
+
+  hydra = Typhoeus::Hydra.hydra
+  requests = number.times.map {
+    request = Typhoeus::Request.new("#{url}", :method => :post, :timeout => 30000, :header   => {:Accept => "application/json", 'Content-Type' => "application/json"}, :body => params.to_json)
+    hydra.queue(request)
+    request
+  }
+  hydra.run  # exception thrown on this line
+
+  responses = requests.map { |request|
+    pp request.response.body
+  }
+
+
+  #if result['status'] == "successful"
+  #  if result['code'] == 200
+  #    print  "Created alert #{result['alertId'].chomp}\n"
+  #  else
+  #    print "Updated alert #{result['alertId'].chomp}\n"
+  #  end
+  #end
 
 
 end
 
-opts[:number].to_i.times do |i|
-  post_to_opsgenie(:create, alias: "test_alert_#{i}", message: "Load test generation alert: Number #{i}", description: 'Please ignore, load test generation alert', entity: 'load_test_script', customerKey: opts[:customer_key])
-end
+post_to_opsgenie(:create, opts[:number],  alias: "test_alert", message: "Load test generation alert", description: 'Please ignore, load test generation alert', entity: 'load_test_script', customerKey: opts[:customer_key])
 
