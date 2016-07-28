@@ -1,0 +1,12 @@
+GEM
+  specs:
+    trollop (2.1.2)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  trollop
+
+BUNDLED WITH
+   1.11.2
